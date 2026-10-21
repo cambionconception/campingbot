@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campwatch: text me when a campsite opens</title>
+<style>
+:root{--bg:#eef0e6;--ink:#1d2a22;--muted:#5b6b5f;--panel:#fff;--line:#c9cfbd;--accent:#b4491f;--accent-ink:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#141b16;--ink:#e6eadb;--muted:#9aa896;--panel:#1c261f;--line:#34443a;--accent:#e0804f;--accent-ink:#1a120c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.55 Georgia,"Times New Roman",serif;min-height:100vh;display:grid;place-items:center;padding:24px}
+main{width:100%;max-width:520px}
+h1{font-size:2.4rem;line-height:1.1;margin:0 0 .5rem;letter-spacing:-.01em}
+p.lead{color:var(--muted);margin:0 0 1.5rem}
+form{background:var(--panel);border:2px solid var(--ink);border-radius:4px;padding:22px;display:grid;gap:16px}
+label{display:grid;gap:6px;font-weight:bold;font-size:.95rem}
+label span.hint{font-weight:normal;color:var(--muted);font-size:.85rem}
+input{font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:3px;background:transparent;color:inherit;width:100%}
+input:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{font:inherit;font-weight:bold;padding:12px;border:0;border-radius:3px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+#msg{min-height:1.5em;margin:0;font-size:.95rem}
+#msg.ok{color:#2f7a45}#msg.err{color:#c0392b}
+</style>
+</head>
+<body>
+<main>
+  <h1>Get a text when a campsite opens up.</h1>
+  <p class="lead">Paste a Recreation.gov campground link and your dates. We check every few minutes and message you when a site is free for your whole stay.</p>
+  <form id="f">
+    <label>Campground link
+      <input name="url" type="url" required placeholder="https://www.recreation.gov/camping/campgrounds/232447">
+    </label>
+    <div class="row">
+      <label>Arrive <input name="start" type="date" required></label>
+      <label>Leave <input name="end" type="date" required></label>
+    </div>
+    <label>Mobile number
+      <input name="phone" type="tel" required placeholder="(408) 555-0123" autocomplete="tel">
+      <span class="hint">US numbers. Standard message rates apply.</span>
+    </label>
+    <button id="go">Start watching</button>
+    <p id="msg" role="status"></p>
+  </form>
+</main>
+<script>
+// After deploying the Worker, paste its URL here:
+const API_URL = "https://campwatch.YOUR-SUBDOMAIN.workers.dev/watch";
+
+const f = document.getElementById("f"), msg = document.getElementById("msg"), go = document.getElementById("go");
+const today = new Date().toISOString().slice(0,10);
+f.start.min = f.end.min = today;
+
+f.addEventListener("submit", async e => {
+  e.preventDefault();
+  msg.className = ""; msg.textContent = "";
+  const d = Object.fromEntries(new FormData(f));
+  if (d.end <= d.start) { msg.className = "err"; msg.textContent = "Leave date must be after arrival."; return; }
+  go.disabled = true; go.textContent = "Saving…";
+  try {
+    const r = await fetch(API_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(d)});
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Something went wrong.");
+    msg.className = "ok"; msg.textContent = j.message; f.reset();
+  } catch (err) {
+    msg.className = "err"; msg.textContent = err.message;
+  } finally { go.disabled = false; go.textContent = "Start watching"; }
+});
+</script>
+</body>
+</html>
